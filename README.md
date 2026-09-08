@@ -1,21 +1,29 @@
 # BitHarbor ⚓
 
-Self-hostable torrent meta-search template (Next.js + TypeScript + Torznab/Jackett).
+Self-hostable torrent meta-search (Next.js + TypeScript).
 
-The app **never scrapes torrent sites directly**. It fans out to your
-Jackett/Prowlarr via Torznab, normalizes results, and renders a seeder-sorted
-search UI. Indexer choice is **your configuration** — see `.env.example`.
+Works out of the box with **zero configuration** via built-in providers
+(Nyaa RSS + YTS API), and merges in your Jackett/Prowlarr indexers via Torznab
+when `TORZNAB_URL` + `TORZNAB_API_KEY` are set. The app **never scrapes
+tracker HTML**. Extra indexer choice is **your configuration** —
+see `.env.example`.
 
-## Quickstart
+## Quickstart (no config needed)
 
-### Option A — bring your own Jackett (fastest dev path)
+```bash
+npm install
+npm run dev   # → http://localhost:3000
+```
+
+Health: `GET /api/health` · Search: `GET /api/search?q=dune&trackers=all`
+
+### Adding Jackett (for 1337x / TPB / TGx …)
 
 1. Run Jackett somewhere (Docker or native), copy an API key + Torznab feed URL.
 2. `cp .env.example .env` and set `TORZNAB_URL` + `TORZNAB_API_KEY`.
-3. `npm install && npm run dev` → http://localhost:3000
-4. Health: `GET /api/health` · Search: `GET /api/search?q=ubuntu&trackers=all`
+3. Restart. `trackers=all` now merges built-ins + your Jackett feed.
 
-### Option B — full compose (web + Jackett + FlareSolverr)
+### Full compose (web + Jackett + FlareSolverr)
 
 ```bash
 cp .env.example .env
@@ -58,7 +66,8 @@ configure `http://flaresolverr:8191` in Jackett settings.
 ```
 
 Errors: `400 bad_query` · `429 rate_limited` (with `Retry-After`) ·
-`503 jackett_not_configured`.
+`503 jackett_not_configured` (only when you explicitly name a Jackett indexer
+that isn't configured).
 
 Behavior (grilled spec):
 
@@ -75,7 +84,15 @@ Behavior (grilled spec):
 See `.env.example`. Suggested FMHY general starting indexers (verify ids in your
 Jackett UI — do **not** hardcode these into forks you publish):
 
-`1337x, thepiratebay, torrentgalaxy, nyaasi, yts`
+`1337x, thepiratebay, torrentgalaxy, nyaasi`
+
+## Tests
+
+```bash
+npm test        # vitest: parsers, ranking, cache, rate limit, source routing (31 tests)
+npm run typecheck
+npm run build
+```
 
 ## Disclaimer
 
