@@ -1,0 +1,44 @@
+# BitHarbor hybrid stack: web + Jackett + FlareSolverr.
+# Bring-your-own alternative: run only `web` and point TORZNAB_URL at an
+# existing Jackett/Prowlarr (see .env.example). Compose is the one-command path.
+#
+# NOTE: authored without a local Docker daemon — validate with
+# `docker compose config` and `docker compose up --build` on a host with Docker.
+
+services:
+  web:
+    build: .
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      # Docker-network default; override in .env if you use external Jackett.
+      TORZNAB_URL: ${TORZNAB_URL:-http://jackett:9117/api/v2.0/indexers/all/results/torznab}
+    depends_on:
+      - jackett
+    restart: unless-stopped
+
+  jackett:
+    image: lscr.io/linuxserver/jackett:latest
+    ports:
+      - "9117:9117"
+    volumes:
+      - jackett-config:/config
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+      # Jackett reaches FlareSolverr at http://flaresolverr:8191 for Cloudflare hosts.
+    restart: unless-stopped
+
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    ports:
+      - "8191:8191"
+    environment:
+      - LOG_LEVEL=info
+    restart: unless-stopped
+
+volumes:
+  jackett-config:
