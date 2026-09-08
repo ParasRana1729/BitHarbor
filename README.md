@@ -9,7 +9,12 @@ Just `npm install && npm run dev`.
 - **Nyaa** RSS — anime, live-action, music, books, software, games
 - **YTS** API — movies, one result per quality, with IMDB ids
 - **Pirate Bay** via the Apibay API — general, category-filtered, often with IMDB ids
-- **YIFY Subtitles** — per-movie subtitles sorted by community rating
+- **SolidTorrents** API — DHT index, verified flag, all categories
+- **EZTV** API (+ TVMaze title resolution) — TV episodes per show
+- **YIFY Subtitles** — per-movie subtitles sorted by community rating,
+  with episode matching (`S01E02` filtered against release tags)
+- **kitsunekko.net** — Japanese anime subtitles matched to anime + episode
+  (including batch-range packs like `0001-0130`)
 
 Pick a category (All, Movies, TV Shows, Anime, Music, Books, Software, Games)
 and BitHarbor queries the right corners of each feed. Toggle providers, sort by
@@ -60,9 +65,13 @@ Or `docker compose up --build`. Health: `GET /api/health`.
 }
 ```
 
-`GET /api/subtitles?imdb=tt0133093 | ?title=The+Matrix [&lang=English]`
-→ `{ movieTitle, imdbId, count, subtitles: [{ language, rating, uploader, release, downloadUrl }] }`,
-sorted best-match first, cached 1h.
+`GET /api/subtitles?imdb=tt0133093 | ?title=The+Matrix [&lang=English] [&ep=S01E02]`
+→ `{ movieTitle, imdbId, episode, episodeFiltered, count, subtitles: [{ language, rating, uploader, release, downloadUrl }] }`,
+sorted best-match first, cached 1h. Missing titles return an empty list, not an error.
+
+`GET /api/anime-subs?title=<nyaa release title>`
+→ `{ anime, episode, episodeFiltered, count, subtitles: [{ name, url }] }`,
+Japanese subs for the exact anime + episode, cached 24h.
 
 Errors: `400 bad_query|bad_category|bad_tracker` · `429 rate_limited`
 (with `Retry-After`) · `502 subtitle_unavailable`.
