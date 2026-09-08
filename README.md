@@ -85,8 +85,19 @@ Behavior:
 
 ## Tests
 
+Three layers — unit, browser, and load:
+
 ```bash
-npm test        # vitest: parsers, categories, ranking, cache, limits, routing, subtitles
+npm test        # vitest: 76 unit tests (parsers, ranking, cache incl.
+                #   eviction bound, rate-limit windows, provider timeouts,
+                #   partial-provider failure, subtitle/episode matching)
+npm run test:e2e # playwright + chromium: 14 tests, real build + live feeds
+                #   (search flows per category, theme persistence, / shortcut,
+                #   sort ordering, subtitle downloads, provider chips, mobile,
+                #   zero console/page errors)
+npm run test:load # node harness, own prod server: cold latency, cache HITs,
+                #   24-way concurrency (0x 5xx), 429 burst behavior, subtitles,
+                #   post-burst recovery
 npm run typecheck
 npm run build
 ```
