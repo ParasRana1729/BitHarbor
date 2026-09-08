@@ -12,8 +12,9 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }): React.JSX.Element {
+  // theme set pre-paint to avoid a flash; page.tsx owns the toggle
   return (
-    <html lang="en">
+    <html lang="en" data-theme="dark">
       <body>{children}</body>
     </html>
   );
