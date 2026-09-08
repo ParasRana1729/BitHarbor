@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { buildCacheKey, cacheGet, cacheSet } from "@/lib/cache";
 import { getConfig, isJackettConfigured } from "@/lib/indexers";
+import { searchBuiltin } from "@/lib/providers";
+import { rankResults } from "@/lib/rank";
 import { checkRateLimit, getClientIp } from "@/lib/ratelimit";
+import { resolveSources } from "@/lib/sources";
 import { searchTorznabAll } from "@/lib/torznab";
 import type { SearchResponse, TorrentResult } from "@/lib/types";
 
@@ -19,8 +22,10 @@ function parseTrackers(raw: string | null, fallback: string[]): string[] {
 
 /**
  * GET /api/search?q=<query>&trackers=<csv>&includeZero=1
- * Response: SearchResponse — results sorted seeders desc, 0-seed hidden by default.
- * Errors: 400 bad query, 429 rate limited, 503 jackett not configured.
+ * Sources: built-in providers (nyaa, yts — no config needed) merged with
+ * Jackett/Torznab when TORZNAB_URL + TORZNAB_API_KEY are set.
+ * Response: SearchResponse — results ranked (seeders desc), 0-seed hidden by default.
+ * Errors: 400 bad query, 429 rate limited, 503 jackett needed but not configured.
  */
 export async function GET(req: Request): Promise<NextResponse> {
   const started = Date.now();
@@ -48,27 +53,42 @@ export async function GET(req: Request): Promise<NextResponse> {
     );
   }
 
-  if (!isJackettConfigured(cfg)) {
+  const trackers = parseTrackers(
+    url.searchParams.get("trackers"),
+    cfg.defaultIndexers,
+  );
+  const includeZero =
+    url.searchParams.get("includeZero") === "1" ||
+    url.searchParams.get("includeZero")?.toLowerCase() === "true";
+
+  // Source routing (built-in nyaa/yts vs Jackett) — see lib/sources.ts.
+  const { builtinIds, jackettQuery, effectiveTrackers, needsJackettError } =
+    resolveSources({
+      trackers,
+      defaultIndexers: cfg.defaultIndexers,
+      jackettConfigured: isJackettConfigured(cfg),
+      explicitTrackers: url.searchParams.has("trackers"),
+    });
+  if (needsJackettError) {
     return NextResponse.json(
       {
         error: "jackett_not_configured",
-        message: "Set TORZNAB_URL and TORZNAB_API_KEY. See .env.example.",
+        message:
+          "This tracker needs Jackett. Set TORZNAB_URL and TORZNAB_API_KEY, or search nyaa / yts which need no config. See .env.example.",
       },
       { status: 503 },
     );
   }
 
-  const trackers = parseTrackers(url.searchParams.get("trackers"), cfg.defaultIndexers);
-  const includeZero =
-    url.searchParams.get("includeZero") === "1" ||
-    url.searchParams.get("includeZero")?.toLowerCase() === "true";
-
-  const cacheKey = buildCacheKey(q, includeZero ? [...trackers, "inc0"] : trackers);
+  const cacheKey = buildCacheKey(
+    q,
+    includeZero ? [...effectiveTrackers, "inc0"] : effectiveTrackers,
+  );
   const cachedResults = cacheGet<TorrentResult[]>(cacheKey);
   if (cachedResults) {
     const body: SearchResponse = {
       query: q,
-      trackers,
+      trackers: effectiveTrackers,
       cached: true,
       tookMs: Date.now() - started,
       count: cachedResults.length,
@@ -82,21 +102,19 @@ export async function GET(req: Request): Promise<NextResponse> {
     });
   }
 
-  const { results } = await searchTorznabAll(q, trackers);
+  const [builtinResults, torznabResults] = await Promise.all([
+    builtinIds.length > 0
+      ? searchBuiltin(q, builtinIds, cfg.requestTimeoutMs)
+      : Promise.resolve([] as TorrentResult[]),
+    jackettQuery
+      ? searchTorznabAll(q, jackettQuery).then((r) => r.results)
+      : Promise.resolve([] as TorrentResult[]),
+  ]);
 
-  // Trust rule (grilled spec): hide 0-seed by default, sort seeders desc,
-  // trusted uploaders float within equal seeder counts — never hide trusted.
-  const filtered = results.filter((r) => {
-    if (r.trusted) return true;
-    if (!includeZero && cfg.hideZeroSeed && r.seeders <= 0) return false;
-    return true;
+  const sliced = rankResults([...builtinResults, ...torznabResults], {
+    hideZeroSeed: includeZero ? false : cfg.hideZeroSeed,
+    maxResults: cfg.maxResults,
   });
-  filtered.sort((a, b) => {
-    if (b.seeders !== a.seeders) return b.seeders - a.seeders;
-    if (a.trusted !== b.trusted) return a.trusted ? -1 : 1;
-    return b.leechers - a.leechers;
-  });
-  const sliced = filtered.slice(0, cfg.maxResults);
 
   cacheSet(cacheKey, sliced, cfg.cacheTtlSeconds * 1000);
 
@@ -105,7 +123,7 @@ export async function GET(req: Request): Promise<NextResponse> {
     console.log(
       JSON.stringify({
         msg: "search",
-        trackers: trackers.length,
+        trackers: effectiveTrackers.length,
         count: sliced.length,
         tookMs: Date.now() - started,
         cached: false,
@@ -115,7 +133,7 @@ export async function GET(req: Request): Promise<NextResponse> {
 
   const body: SearchResponse = {
     query: q,
-    trackers,
+    trackers: effectiveTrackers,
     cached: false,
     tookMs: Date.now() - started,
     count: sliced.length,

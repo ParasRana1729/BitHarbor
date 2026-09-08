@@ -151,10 +151,10 @@ export default function Home(): React.JSX.Element {
 
       <div className="controls">
         <label>
-          Trackers (csv, blank = server default):{" "}
+          Trackers (csv, blank = all):{" "}
           <input
             type="text"
-            placeholder="e.g. 1337x,nyaasi,yts"
+            placeholder="e.g. nyaa,yts"
             value={trackers}
             onChange={(e) => setTrackers(e.target.value)}
             size={28}
@@ -186,10 +186,10 @@ export default function Home(): React.JSX.Element {
       )}
 
       <div className="footer">
-        BitHarbor is a search template for content you have the right to
-        download. Indexer list is your own configuration — see .env.example and
-        FMHY for ideas. No query content is logged by default. Demo instances
-        should enable DEMO_MODE + rate limits.
+        BitHarbor searches Nyaa + YTS out of the box, plus your Jackett/Prowlarr
+        indexers when configured — see .env.example and FMHY for ideas. No
+        query content is logged by default. Demo instances should enable
+        DEMO_MODE + rate limits. Only download content you have the right to.
       </div>
     </main>
   );
