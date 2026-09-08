@@ -1,102 +1,89 @@
 # BitHarbor ⚓
 
-Self-hostable torrent meta-search (Next.js + TypeScript).
+Torrent meta-search with categories and matching subtitles.
+Next.js + TypeScript. **No setup: no env files, no keys, no accounts.**
+Just `npm install && npm run dev`.
 
-Works out of the box with **zero configuration** via built-in providers
-(Nyaa RSS + YTS API), and merges in your Jackett/Prowlarr indexers via Torznab
-when `TORZNAB_URL` + `TORZNAB_API_KEY` are set. The app **never scrapes
-tracker HTML**. Extra indexer choice is **your configuration** —
-see `.env.example`.
+## Sources (all keyless public feeds)
 
-## Quickstart (no config needed)
+- **Nyaa** RSS — anime, live-action, music, books, software, games
+- **YTS** API — movies, one result per quality, with IMDB ids
+- **Pirate Bay** via the Apibay API — general, category-filtered, often with IMDB ids
+- **YIFY Subtitles** — per-movie subtitles sorted by community rating
+
+Pick a category (All, Movies, TV Shows, Anime, Music, Books, Software, Games)
+and BitHarbor queries the right corners of each feed. Toggle providers, sort by
+seeders / age / size, copy magnet links or grab `.torrent` files.
+
+Video results with an IMDB id get a **Subtitles** button: best-match subtitles
+for that exact title, filterable by language, direct zip download.
+
+## Quickstart
 
 ```bash
 npm install
 npm run dev   # → http://localhost:3000
 ```
 
-Health: `GET /api/health` · Search: `GET /api/search?q=dune&trackers=all`
+Or `docker compose up --build`. Health: `GET /api/health`.
 
-### Adding Jackett (for 1337x / TPB / TGx …)
+## API
 
-1. Run Jackett somewhere (Docker or native), copy an API key + Torznab feed URL.
-2. `cp .env.example .env` and set `TORZNAB_URL` + `TORZNAB_API_KEY`.
-3. Restart. `trackers=all` now merges built-ins + your Jackett feed.
-
-### Full compose (web + Jackett + FlareSolverr)
-
-```bash
-cp .env.example .env
-# fill TORZNAB_API_KEY after first Jackett boot (Jackett UI -> Dashboard)
-docker compose up --build
-```
-
-Jackett needs FlareSolverr for Cloudflare-protected trackers:
-configure `http://flaresolverr:8191` in Jackett settings.
-
-## API contract
-
-`GET /api/search?q=<2..100 chars>&trackers=<csv|all>&includeZero=1`
+`GET /api/search?q=<2..100 chars>&cat=<all|movies|tv|anime|music|books|software|games>&trackers=<nyaa,yts,tpb|all>&includeZero=1`
 
 ```jsonc
 {
-  "query": "ubuntu",
-  "trackers": ["all"],
+  "query": "dune",
+  "category": "movies",
+  "trackers": ["nyaa", "yts", "tpb"],
   "cached": false,
-  "tookMs": 812,
-  "count": 24,
+  "tookMs": 1045,
+  "count": 50,
   "results": [
     {
       "id": "a3f9…",
-      "title": "Ubuntu 24.04 Desktop",
-      "tracker": "1337x",
+      "title": "Dune: Part One (2021) [1080p]",
+      "tracker": "yts",
       "infoHash": "…",
       "magnetUri": "magnet:?…",
-      "torrentUrl": "https://…/x.torrent",
-      "detailsUrl": "https://…/torrent/…",
-      "seeders": 412,
-      "leechers": 37,
-      "sizeBytes": 5905580032,
+      "torrentUrl": "https://…",
+      "detailsUrl": "https://…",
+      "imdbId": "tt1160419",
+      "seeders": 100,
+      "leechers": 44,
+      "sizeBytes": 2147483648,
       "publishedAt": "2026-…",
-      "uploader": "trusted-name",
+      "uploader": "YTS",
       "trusted": true
     }
   ]
 }
 ```
 
-Errors: `400 bad_query` · `429 rate_limited` (with `Retry-After`) ·
-`503 jackett_not_configured` (only when you explicitly name a Jackett indexer
-that isn't configured).
+`GET /api/subtitles?imdb=tt0133093 | ?title=The+Matrix [&lang=English]`
+→ `{ movieTitle, imdbId, count, subtitles: [{ language, rating, uploader, release, downloadUrl }] }`,
+sorted best-match first, cached 1h.
 
-Behavior (grilled spec):
+Errors: `400 bad_query|bad_category|bad_tracker` · `429 rate_limited`
+(with `Retry-After`) · `502 subtitle_unavailable`.
 
-- Fan-out with `MAX_INDEXERS_PARALLEL` (default 5), per-indexer failure is non-fatal.
-- Trust rule: hide 0-seed by default (`HIDE_ZERO_SEED`), trusted uploaders
-  bypass the hide; sort seeders desc → trusted → leechers.
-- Demo safety: 5-min in-memory LRU cache (`CACHE_TTL_SECONDS`), 30 req/min/IP
-  sliding window (`RATE_LIMIT_PER_MIN`), `Cache-Control: s-maxage=60`,
+Behavior:
+
+- Trust rule: hide 0-seed by default (`includeZero=1` overrides), trusted
+  uploaders bypass the hide; sort seeders desc → trusted → leechers.
+- Safety: 5-min search cache, per-IP rate limits, `Cache-Control: s-maxage=60`,
   **no query-content logging** (counts + timings only).
-- `GET /api/health` → `{ ok, jackettConfigured, time }`.
-
-## Configuration
-
-See `.env.example`. Suggested FMHY general starting indexers (verify ids in your
-Jackett UI — do **not** hardcode these into forks you publish):
-
-`1337x, thepiratebay, torrentgalaxy, nyaasi`
 
 ## Tests
 
 ```bash
-npm test        # vitest: parsers, ranking, cache, rate limit, source routing (31 tests)
+npm test        # vitest: parsers, categories, ranking, cache, limits, routing, subtitles
 npm run typecheck
 npm run build
 ```
 
 ## Disclaimer
 
-BitHarbor is a search template for content you have the right to download.
-You operate your own Jackett + indexer set and are responsible for what you
-configure, host, and download. Demo hosts: keep `DEMO_MODE=true`, rate limits
-on, and expect tracker IPs to get banned/flagged — the demo is disposable.
+BitHarbor queries public feeds for content you have the right to download.
+You are responsible for what you download. Subtitle downloads come straight
+from YIFY Subtitles.
