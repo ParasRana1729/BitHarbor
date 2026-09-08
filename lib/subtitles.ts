@@ -74,6 +74,36 @@ export function parseMovieTitle(html: string): string {
   return raw.replace(/\s+YIFY subtitles\s*$/i, "").trim() || raw;
 }
 
+/** "Show S01E02 720p" -> "S01E02" (normalized, uppercased). */
+export function extractSeasonEpisode(title: string): string | undefined {
+  const m = title.match(/S(\d{1,2})E(\d{1,3})/i);
+  if (!m) return undefined;
+  return `S${m[1].padStart(2, "0")}E${m[2].padStart(2, "0")}`.toUpperCase();
+}
+
+/**
+ * Keep only rows whose release tag names the episode (e.g. S01E02).
+ * Returns the original list when nothing matches so callers can
+ * signal episodeFiltered=false instead of showing an empty list.
+ */
+export function filterByEpisode(
+  subs: SubtitleEntry[],
+  ep: string,
+): { filtered: SubtitleEntry[]; applied: boolean } {
+  const nums = ep.match(/S(\d+)E(\d+)/i);
+  const patterns = nums
+    ? [
+        ep.toUpperCase(),
+        `S${Number(nums[1])}E${Number(nums[2])}`,
+        `${Number(nums[1])}x${Number(nums[2])}`,
+      ]
+    : [ep];
+  const hits = subs.filter((s) =>
+    patterns.some((p) => (s.release ?? "").toUpperCase().includes(p.toUpperCase())),
+  );
+  return hits.length > 0 ? { filtered: hits, applied: true } : { filtered: subs, applied: false };
+}
+
 /** Pure: YTS search JSON -> first movie imdb id. Exported for tests. */
 export function firstImdbFromYts(json: unknown): string | undefined {
   const movies = (json as { data?: { movies?: { imdb_code?: string }[] } })?.data
@@ -91,13 +121,21 @@ export async function lookupSubtitlesByImdb(
   timeoutMs: number,
 ): Promise<SubtitleLookup> {
   const movieUrl = `${YIFY_BASE}/movie-imdb/${imdbId}`;
-  const html = await (await fetchWithTimeout(movieUrl, timeoutMs)).text();
-  return {
-    movieTitle: parseMovieTitle(html),
-    imdbId,
-    movieUrl,
-    subtitles: parseSubtitleRows(html),
-  };
+  try {
+    const html = await (await fetchWithTimeout(movieUrl, timeoutMs)).text();
+    return {
+      movieTitle: parseMovieTitle(html),
+      imdbId,
+      movieUrl,
+      subtitles: parseSubtitleRows(html),
+    };
+  } catch (err) {
+    // no page for this title (common for series) => empty, not an error
+    if (err instanceof Error && err.message.includes("404")) {
+      return { movieTitle: imdbId, imdbId, movieUrl, subtitles: [] };
+    }
+    throw err;
+  }
 }
 
 export async function lookupSubtitlesByTitle(

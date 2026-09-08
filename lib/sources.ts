@@ -1,4 +1,4 @@
-import type { ProviderId } from "./providers";
+import { PROVIDER_IDS, type ProviderId } from "./providers";
 import { categorySources } from "./categories";
 
 export interface ResolvedSources {
@@ -6,6 +6,20 @@ export interface ResolvedSources {
   effectiveTrackers: string[];
   /** explicitly requested ids we don't know */
   invalid: string[];
+}
+
+/** Default provider set for a category (tpb skipped for anime: no anime there). */
+export function providersForCategory(
+  category: Parameters<typeof categorySources>[0],
+): ProviderId[] {
+  const src = categorySources(category);
+  const out: ProviderId[] = [];
+  if (src.nyaa) out.push("nyaa");
+  if (src.yts) out.push("yts");
+  if (category !== "anime") out.push("tpb");
+  if (src.solid) out.push("solid");
+  if (src.eztv) out.push("eztv");
+  return out;
 }
 
 /**
@@ -19,20 +33,12 @@ export function resolveSources(
 ): ResolvedSources {
   const cleaned = trackers.map((t) => t.toLowerCase()).filter((t) => t !== "all");
   if (cleaned.length === 0) {
-    const src = categorySources(category);
-    const providers: ProviderId[] = [];
-    if (src.nyaa) providers.push("nyaa");
-    if (src.yts) providers.push("yts");
-    providers.push("tpb");
-    // anime intentionally skips tpb (no anime categories there)
-    const trimmed: ProviderId[] = category === "anime" ? ["nyaa"] : providers;
-    return { providers: trimmed, effectiveTrackers: trimmed, invalid: [] };
+    const providers = providersForCategory(category);
+    return { providers, effectiveTrackers: [...providers], invalid: [] };
   }
-  const known: ProviderId[] = ["nyaa", "yts", "tpb"];
-  const providers = cleaned.filter((t): t is ProviderId =>
-    (known as string[]).includes(t),
-  );
-  const invalid = cleaned.filter((t) => !(known as string[]).includes(t));
+  const known = PROVIDER_IDS as readonly string[];
+  const providers = cleaned.filter((t): t is ProviderId => known.includes(t));
+  const invalid = cleaned.filter((t) => !known.includes(t));
   const deduped: ProviderId[] = Array.from(new Set(providers));
-  return { providers: deduped, effectiveTrackers: deduped, invalid };
+  return { providers: deduped, effectiveTrackers: [...deduped], invalid };
 }

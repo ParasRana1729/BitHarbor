@@ -12,8 +12,22 @@ describe("isCategoryId", () => {
 });
 
 describe("categorySources", () => {
-  it("gives movies the full treatment (nyaa + yts + tpb movie cats)", () => {
-    expect(categorySources("movies")).toEqual({ nyaa: "4_0", yts: true, tpb: [201, 207] });
+  it("gives movies the full treatment (nyaa + yts + tpb movie cats + solid)", () => {
+    expect(categorySources("movies")).toEqual({
+      nyaa: "4_0",
+      yts: true,
+      tpb: [201, 207],
+      solid: "movies",
+      eztv: false,
+    });
+  });
+
+  it("gives tv eztv plus the usual feeds", () => {
+    expect(categorySources("tv")).toMatchObject({
+      tpb: [205, 208],
+      solid: "tv",
+      eztv: true,
+    });
   });
 
   it("keeps anime nyaa-only", () => {
@@ -30,6 +44,12 @@ describe("categorySources", () => {
   });
 
   it("leaves all unfiltered", () => {
-    expect(categorySources("all")).toEqual({ nyaa: "0_0", yts: true, tpb: [] });
+    expect(categorySources("all")).toEqual({
+      nyaa: "0_0",
+      yts: true,
+      tpb: [],
+      solid: "all",
+      eztv: true,
+    });
   });
 });

@@ -10,7 +10,7 @@ import type { TorrentResult } from "./types";
  * - tpb: The Pirate Bay via the public Apibay API (general, carries imdb ids)
  */
 
-export const PROVIDER_IDS = ["nyaa", "yts", "tpb"] as const;
+export const PROVIDER_IDS = ["nyaa", "yts", "tpb", "solid", "eztv"] as const;
 export type ProviderId = (typeof PROVIDER_IDS)[number];
 
 export function isProvider(id: string): id is ProviderId {
@@ -104,7 +104,10 @@ function int(v: unknown): number {
 export function normalizeImdbId(raw: unknown): string | undefined {
   if (typeof raw !== "string") return undefined;
   const m = raw.match(/(tt\d{4,})/);
-  return m ? m[1] : undefined;
+  if (m) return m[1];
+  // EZTV-style bare numeric ids ("0418372" -> "tt0418372")
+  if (/^\d{7,8}$/.test(raw.trim())) return `tt${raw.trim()}`;
+  return undefined;
 }
 
 /* ---------------- Nyaa ---------------- */
@@ -330,6 +333,157 @@ export async function searchTpb(
   return settled.flat();
 }
 
+/* ---------------- SolidTorrents ---------------- */
+
+const SOLID_API_URL = "https://solidtorrents.net/api/v1/search";
+
+interface SolidResult {
+  title?: string;
+  infohash?: string;
+  seeders?: number;
+  leechers?: number;
+  size?: number;
+  category?: number;
+  downloads?: number;
+  verified?: boolean;
+  updatedAt?: number | string;
+}
+
+/** Pure: SolidTorrents search JSON -> TorrentResult[]. Exported for tests. */
+export function parseSolidResponse(json: unknown): TorrentResult[] {
+  const results = (json as { results?: SolidResult[] })?.results;
+  if (!Array.isArray(results)) return [];
+  const out: TorrentResult[] = [];
+  for (const r of results) {
+    const infoHash = r.infohash?.toLowerCase();
+    const title = r.title ?? "untitled";
+    if (!infoHash || /^0+$/.test(infoHash)) continue;
+    let publishedAt = new Date().toISOString();
+    if (typeof r.updatedAt === "number" && r.updatedAt > 0) {
+      // seconds or milliseconds — disambiguate by magnitude
+      const ms = r.updatedAt < 1e12 ? r.updatedAt * 1000 : r.updatedAt;
+      publishedAt = new Date(ms).toISOString();
+    } else if (typeof r.updatedAt === "string" && r.updatedAt) {
+      const d = new Date(r.updatedAt);
+      if (!Number.isNaN(d.getTime())) publishedAt = d.toISOString();
+    }
+    out.push({
+      id: stableId("solid", infoHash),
+      title,
+      tracker: "solid",
+      infoHash,
+      magnetUri: buildMagnet(infoHash, title),
+      seeders: int(r.seeders),
+      leechers: int(r.leechers),
+      sizeBytes: int(r.size),
+      publishedAt,
+      trusted: r.verified === true,
+    });
+  }
+  return out;
+}
+
+export async function searchSolid(
+  query: string,
+  timeoutMs: number,
+  category: string,
+): Promise<TorrentResult[]> {
+  const url = `${SOLID_API_URL}?q=${encodeURIComponent(query)}&category=${encodeURIComponent(category)}&sort=seeders&page=1&limit=20&fuv=no`;
+  const res = await fetchWithTimeout(url, timeoutMs);
+  return parseSolidResponse(await res.json());
+}
+
+/* ---------------- EZTV (+TVMaze title resolution) ---------------- */
+
+const TVMAZE_API_URL = "https://api.tvmaze.com/search/shows";
+const EZTV_API_URL = "https://eztv.re/api/get-torrents";
+
+/** Pure: TVMaze search JSON -> imdb ids (best first). Exported for tests. */
+export function imdbsFromTvmaze(json: unknown, limit = 2): string[] {
+  if (!Array.isArray(json)) return [];
+  const out: string[] = [];
+  for (const entry of json as { show?: { externals?: { imdb?: string } } }[]) {
+    const id = normalizeImdbId(entry?.show?.externals?.imdb);
+    if (id && !out.includes(id)) out.push(id);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+interface EztvTorrent {
+  id?: number;
+  hash?: string;
+  filename?: string;
+  title?: string;
+  magnet_url?: string;
+  torrent_url?: string;
+  imdb_id?: string;
+  season?: string;
+  episode?: string;
+  seeds?: number;
+  peers?: number;
+  size_bytes?: string;
+  date_released_unix?: number;
+}
+
+/** Pure: EZTV get-torrents JSON -> TorrentResult[]. Exported for tests. */
+export function parseEztvResponse(json: unknown, imdbId?: string): TorrentResult[] {
+  const torrents = (json as { torrents?: EztvTorrent[] })?.torrents;
+  if (!Array.isArray(torrents)) return [];
+  const out: TorrentResult[] = [];
+  for (const t of torrents) {
+    const infoHash = t.hash?.toLowerCase();
+    if (!infoHash || /^0+$/.test(infoHash)) continue;
+    const title = t.filename ?? t.title ?? "untitled";
+    let publishedAt = new Date().toISOString();
+    if (typeof t.date_released_unix === "number" && t.date_released_unix > 0) {
+      publishedAt = new Date(t.date_released_unix * 1000).toISOString();
+    }
+    out.push({
+      id: stableId("eztv", infoHash),
+      title,
+      tracker: "eztv",
+      infoHash,
+      magnetUri: t.magnet_url || buildMagnet(infoHash, title),
+      detailsUrl: undefined,
+      imdbId: normalizeImdbId(t.imdb_id) ?? imdbId,
+      seeders: int(t.seeds),
+      leechers: int(t.peers),
+      sizeBytes: int(t.size_bytes),
+      publishedAt,
+      uploader: "EZTV",
+      trusted: true,
+    });
+  }
+  return out;
+}
+
+async function searchEztvImdb(
+  imdb: string,
+  timeoutMs: number,
+): Promise<TorrentResult[]> {
+  // EZTV wants the bare numeric id ("0903747", not "tt0903747") —
+  // the tt form silently disables filtering and returns the whole catalog.
+  const numeric = imdb.replace(/^tt/i, "");
+  const url = `${EZTV_API_URL}?imdb_id=${encodeURIComponent(numeric)}&limit=100`;
+  const res = await fetchWithTimeout(url, timeoutMs);
+  return parseEztvResponse(await res.json(), imdb);
+}
+
+export async function searchEztv(
+  query: string,
+  timeoutMs: number,
+): Promise<TorrentResult[]> {
+  const searchUrl = `${TVMAZE_API_URL}?q=${encodeURIComponent(query)}`;
+  const searchRes = await fetchWithTimeout(searchUrl, timeoutMs);
+  const imdbs = imdbsFromTvmaze(await searchRes.json());
+  if (imdbs.length === 0) return [];
+  const jobs = imdbs.map((id) =>
+    searchEztvImdb(id, timeoutMs).catch((): TorrentResult[] => []),
+  );
+  return (await Promise.all(jobs)).flat();
+}
+
 /* ---------------- fan-out ---------------- */
 
 /**
@@ -351,6 +505,14 @@ export async function searchProviders(
     if (id === "yts") {
       if (!src.yts) return Promise.resolve([]);
       return searchYts(query, timeoutMs);
+    }
+    if (id === "solid") {
+      if (!src.solid) return Promise.resolve([]);
+      return searchSolid(query, timeoutMs, src.solid);
+    }
+    if (id === "eztv") {
+      if (!src.eztv) return Promise.resolve([]);
+      return searchEztv(query, timeoutMs);
     }
     return searchTpb(query, timeoutMs, src.tpb);
   });

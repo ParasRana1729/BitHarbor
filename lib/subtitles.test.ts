@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  extractSeasonEpisode,
+  filterByEpisode,
   firstImdbFromYts,
   parseMovieTitle,
   parseSubtitleRows,
+  type SubtitleEntry,
 } from "./subtitles";
 
 const MOVIE_HTML = `<html><head><title>The Matrix YIFY subtitles</title></head><body>
@@ -62,5 +65,42 @@ describe("firstImdbFromYts", () => {
     expect(firstImdbFromYts(json)).toBe("tt0133093");
     expect(firstImdbFromYts({ data: {} })).toBeUndefined();
     expect(firstImdbFromYts({})).toBeUndefined();
+  });
+});
+
+describe("extractSeasonEpisode", () => {
+  it.each([
+    ["Show S01E02 720p", "S01E02"],
+    ["show s1e2 x264", "S01E02"],
+    ["Show S12E123", "S12E123"],
+    ["Dune (2021)", undefined],
+  ])("extracts %p -> %p", (raw, expected) => {
+    expect(extractSeasonEpisode(raw as string)).toBe(expected);
+  });
+});
+
+describe("filterByEpisode", () => {
+  const row = (release?: string): SubtitleEntry => ({
+    id: release ?? "x",
+    language: "English",
+    rating: 1,
+    release,
+    pageUrl: "p",
+    downloadUrl: "d",
+  });
+
+  it("keeps rows naming the episode, falls back otherwise", () => {
+    const subs = [
+      row("Show S01E02 720p"),
+      row("Show S01E03 720p"),
+      row("Show Complete Pack"),
+    ];
+    const hit = filterByEpisode(subs, "S01E02");
+    expect(hit.applied).toBe(true);
+    expect(hit.filtered.map((s) => s.release)).toEqual(["Show S01E02 720p"]);
+
+    const miss = filterByEpisode(subs, "S09E09");
+    expect(miss.applied).toBe(false);
+    expect(miss.filtered).toHaveLength(3);
   });
 });

@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   buildMagnet,
+  imdbsFromTvmaze,
   normalizeImdbId,
   parseApibayResponse,
+  parseEztvResponse,
   parseNyaaRss,
   parseSizeToBytes,
+  parseSolidResponse,
   parseYtsResponse,
 } from "./providers";
 
@@ -128,6 +131,7 @@ describe("normalizeImdbId", () => {
     ["https://www.imdb.com/title/tt0133093/", "tt0133093"],
     ["", undefined],
     ["nonsense", undefined],
+    ["0418372", "tt0418372"],
     [undefined, undefined],
     [42, undefined],
   ])("normalizes %p -> %p", (raw, expected) => {
@@ -209,5 +213,105 @@ describe("parseYtsResponse", () => {
   it("returns [] when no movies", () => {
     expect(parseYtsResponse({ data: { movie_count: 0 } })).toEqual([]);
     expect(parseYtsResponse({})).toEqual([]);
+  });
+});
+
+describe("parseSolidResponse", () => {
+  it("maps dht results, honors verified, skips zero hashes", () => {
+    const out = parseSolidResponse({
+      results: [
+        {
+          title: "Dune (2021)",
+          infohash: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          seeders: 50,
+          leechers: 5,
+          size: 2000000000,
+          verified: true,
+          updatedAt: 1725148800,
+          downloads: 10,
+        },
+        { title: "junk", infohash: "0000000000000000000000000000000000000000" },
+      ],
+    });
+    expect(out).toHaveLength(1);
+    const r = out[0];
+    expect(r.tracker).toBe("solid");
+    expect(r.magnetUri).toContain("magnet:?");
+    expect(r.trusted).toBe(true);
+    expect(r.publishedAt).toBe(new Date(1725148800 * 1000).toISOString());
+    expect(r.id).toMatch(/^[0-9a-f]{16}$/);
+  });
+
+  it("accepts ISO dates and untrusted rows", () => {
+    const out = parseSolidResponse({
+      results: [
+        {
+          title: "x",
+          infohash: "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+          verified: false,
+          updatedAt: "2026-01-02T03:04:05.000Z",
+        },
+      ],
+    });
+    expect(out[0].trusted).toBe(false);
+    expect(out[0].publishedAt).toBe("2026-01-02T03:04:05.000Z");
+  });
+
+  it("returns [] for non-objects", () => {
+    expect(parseSolidResponse({})).toEqual([]);
+  });
+});
+
+describe("imdbsFromTvmaze", () => {
+  it("extracts imdb ids best-first, deduped, capped", () => {
+    const json = [
+      { show: { externals: { imdb: "tt0903747" } } },
+      { show: { externals: { imdb: null } } },
+      { show: { externals: { imdb: "tt0903747" } } },
+      { show: { externals: { imdb: "tt1234567" } } },
+      { show: { externals: { imdb: "tt7654321" } } },
+    ];
+    expect(imdbsFromTvmaze(json)).toEqual(["tt0903747", "tt1234567"]);
+    expect(imdbsFromTvmaze([])).toEqual([]);
+  });
+});
+
+describe("parseEztvResponse", () => {
+  it("maps episode torrents with ez magnets and bare imdb ids", () => {
+    const out = parseEztvResponse(
+      {
+        torrents: [
+          {
+            hash: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            filename: "Show S01E02 720p HDTV x264-EZTV",
+            magnet_url: "magnet:?xt=urn:btih:AAAA&dn=show",
+            imdb_id: "0418372",
+            seeds: 14,
+            peers: 8,
+            size_bytes: "819412418",
+            date_released_unix: 1788872774,
+          },
+          { hash: "0000000000000000000000000000000000000000" },
+        ],
+      },
+      "tt0418372",
+    );
+    expect(out).toHaveLength(1);
+    const r = out[0];
+    expect(r.tracker).toBe("eztv");
+    expect(r.title).toContain("S01E02");
+    expect(r.magnetUri).toContain("magnet:?");
+    expect(r.imdbId).toBe("tt0418372");
+    expect(r.uploader).toBe("EZTV");
+    expect(r.trusted).toBe(true);
+    expect(r.seeders).toBe(14);
+  });
+
+  it("falls back to the queried imdb when rows lack one", () => {
+    const out = parseEztvResponse(
+      { torrents: [{ hash: "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB" }] },
+      "tt0903747",
+    );
+    expect(out[0].imdbId).toBe("tt0903747");
   });
 });

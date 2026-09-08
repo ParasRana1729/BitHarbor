@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cacheGet, cacheSet } from "@/lib/cache";
 import { checkRateLimit, getClientIp } from "@/lib/ratelimit";
 import {
+  filterByEpisode,
   lookupSubtitlesByImdb,
   lookupSubtitlesByTitle,
 } from "@/lib/subtitles";
@@ -14,9 +15,11 @@ const SUBTITLE_TTL_SECONDS = 3600;
 const RATE_LIMIT_PER_MIN = 30;
 
 /**
- * GET /api/subtitles?imdb=tt0133093 | ?title=The+Matrix [&lang=English]
- * Best-match subtitles for a movie: sorted by community rating desc,
- * optional language filter. Cached 1h. No keys, no config.
+ * GET /api/subtitles?imdb=tt0133093 | ?title=The+Matrix [&lang=English] [&ep=S01E02]
+ * Best-match subtitles for a movie/episode: sorted by community rating desc,
+ * optional language filter, optional episode filter (matched against release
+ * tags; falls back to the whole list when nothing names the episode).
+ * Cached 1h. No keys, no config.
  */
 export async function GET(req: Request): Promise<NextResponse> {
   const headers = new Headers(req.headers);
@@ -32,6 +35,8 @@ export async function GET(req: Request): Promise<NextResponse> {
   const imdbRaw = (url.searchParams.get("imdb") ?? "").trim();
   const title = (url.searchParams.get("title") ?? "").trim();
   const lang = (url.searchParams.get("lang") ?? "").trim().toLowerCase();
+  const epRaw = (url.searchParams.get("ep") ?? "").trim().toUpperCase();
+  const ep = /^S\d{1,2}E\d{1,3}$/.test(epRaw) ? epRaw : undefined;
   const imdb = /^tt\d{4,}$/.test(imdbRaw) ? imdbRaw : undefined;
 
   if (!imdb && title.length < 2) {
@@ -41,7 +46,7 @@ export async function GET(req: Request): Promise<NextResponse> {
     );
   }
 
-  const cacheKey = `sub|${imdb ?? `t:${title.toLowerCase()}`}|${lang || "all"}`;
+  const cacheKey = `sub|${imdb ?? `t:${title.toLowerCase()}`}|${lang || "all"}|${ep ?? "allep"}`;
   const cached = cacheGet<unknown>(cacheKey);
   if (cached) {
     return NextResponse.json(cached, { headers: { "X-Cache": "HIT" } });
@@ -59,15 +64,20 @@ export async function GET(req: Request): Promise<NextResponse> {
     );
   }
 
-  const subtitles = lang
+  const langFiltered = lang
     ? lookup.subtitles.filter((s) => s.language.toLowerCase() === lang)
     : lookup.subtitles;
+  const { filtered: subtitles, applied: episodeFiltered } = ep
+    ? filterByEpisode(langFiltered, ep)
+    : { filtered: langFiltered, applied: false };
 
   const body = {
     movieTitle: lookup.movieTitle,
     imdbId: lookup.imdbId,
     movieUrl: lookup.movieUrl,
     lang: lang || null,
+    episode: ep ?? null,
+    episodeFiltered,
     count: subtitles.length,
     subtitles: subtitles.slice(0, 100),
   };
