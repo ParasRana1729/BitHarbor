@@ -45,6 +45,7 @@ a {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  margin-top: 14px;
 }
 
 .searchbar input[type="text"] {
@@ -76,9 +77,73 @@ a {
   display: flex;
   gap: 16px;
   flex-wrap: wrap;
+  align-items: center;
   margin: 12px 0 20px;
   color: var(--muted);
   font-size: 14px;
+}
+
+.controls select {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
+.pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pill {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 7px 16px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.pill:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.pill.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #04222f;
+  font-weight: 700;
+}
+
+.chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.chip {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  border-radius: 8px;
+  padding: 5px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.chip.active {
+  color: var(--good);
+  border-color: #245c36;
+}
+
+.sort {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .controls input[type="text"] {
@@ -158,6 +223,57 @@ a {
   padding: 6px 12px;
   text-decoration: none;
   cursor: pointer;
+}
+
+.actions a:hover,
+.actions button:hover {
+  border-color: var(--accent);
+}
+
+.subs {
+  display: inline;
+}
+
+.subs-panel {
+  flex-basis: 100%;
+  margin-top: 10px;
+  border-top: 1px dashed var(--border);
+  padding-top: 10px;
+}
+
+.subs-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.subs-controls select {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 4px 8px;
+}
+
+.sub-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 6px 0;
+  border-bottom: 1px solid #16202f;
+  font-size: 13px;
+}
+
+.sub-row .cut {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .footer {
