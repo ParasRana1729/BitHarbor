@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { _clearRateLimits, checkRateLimit } from "./ratelimit";
 
 describe("ratelimit", () => {
@@ -17,5 +17,18 @@ describe("ratelimit", () => {
     checkRateLimit("a", 1);
     expect(checkRateLimit("a", 1).allowed).toBe(false);
     expect(checkRateLimit("b", 1).allowed).toBe(true);
+  });
+
+  it("resets after the 60s window passes", () => {
+    vi.useFakeTimers();
+    try {
+      expect(checkRateLimit("w", 2).allowed).toBe(true);
+      expect(checkRateLimit("w", 2).allowed).toBe(true);
+      expect(checkRateLimit("w", 2).allowed).toBe(false);
+      vi.advanceTimersByTime(61_000);
+      expect(checkRateLimit("w", 2).allowed).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

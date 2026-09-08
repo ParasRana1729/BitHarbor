@@ -1,4 +1,10 @@
-import { describe, expect, it } from "vitest";
+import {
+  afterEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import {
   buildMagnet,
   imdbsFromTvmaze,
@@ -9,6 +15,7 @@ import {
   parseSizeToBytes,
   parseSolidResponse,
   parseYtsResponse,
+  searchProviders,
 } from "./providers";
 
 const NYAA_FIXTURE = `<?xml version="1.0" encoding="UTF-8"?>
@@ -313,5 +320,52 @@ describe("parseEztvResponse", () => {
       "tt0903747",
     );
     expect(out[0].imdbId).toBe("tt0903747");
+  });
+});
+
+describe("searchProviders resilience", () => {
+  const YTS_MIN = {
+    data: {
+      movies: [
+        {
+          title_long: "Dune (2021)",
+          imdb_code: "tt1160419",
+          url: "https://yts.gg/movies/dune-2021",
+          torrents: [{ hash: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", quality: "1080p", seeds: 5 }],
+        },
+      ],
+    },
+  };
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("survives one provider going down", async () => {
+    vi.stubGlobal("fetch", async (url: unknown) => {
+      const u = String(url);
+      if (u.includes("nyaa.si")) throw new Error("nyaa down");
+      if (u.includes("movies-api")) {
+        return new Response(JSON.stringify(YTS_MIN), { status: 200 });
+      }
+      throw new Error(`unexpected ${u}`);
+    });
+    const out = await searchProviders("dune", ["nyaa", "yts"], 5000, "movies");
+    expect(out.length).toBeGreaterThan(0);
+    expect(out.every((r) => r.tracker === "yts")).toBe(true);
+  });
+
+  it("treats hung providers as empty via timeout, not errors", async () => {
+    vi.stubGlobal(
+      "fetch",
+      (_url: unknown, init?: { signal?: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () =>
+            reject(new DOMException("aborted", "AbortError")),
+          );
+        }),
+    );
+    const out = await searchProviders("dune", ["nyaa", "yts"], 100, "movies");
+    expect(out).toEqual([]);
   });
 });

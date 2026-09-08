@@ -235,7 +235,13 @@ function KitsuSubs({ title }: { title: string }): React.JSX.Element {
 function ResultCard({ r }: { r: TorrentResult }): React.JSX.Element {
   const [copied, setCopied] = useState(false);
   return (
-    <article className="card">
+    <article
+      className="card"
+      data-testid="result"
+      data-seeders={r.seeders}
+      data-size={r.sizeBytes}
+      data-published={r.publishedAt}
+    >
       <div className="title">{r.title}</div>
       <div className="meta-row mono">
         <span className="src">{r.tracker}</span>

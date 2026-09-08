@@ -20,4 +20,11 @@ describe("cache", () => {
       buildCacheKey("ubuntu iso", ["nyaa", "yts"]),
     );
   });
+
+  it("evicts oldest beyond the 200-entry bound (memory safety at scale)", () => {
+    for (let i = 0; i < 210; i++) cacheSet(`k${i}`, i, 60_000);
+    expect(cacheGet("k0")).toBeNull();
+    expect(cacheGet("k9")).toBeNull();
+    expect(cacheGet("k209")).toBe(209);
+  });
 });
