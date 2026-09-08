@@ -9,6 +9,7 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 const REQUEST_TIMEOUT_MS = 15000;
 const SUBTITLE_TTL_SECONDS = 3600;

@@ -9,6 +9,9 @@ import type { SearchResponse, TorrentResult } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// Vercel Hobby kills functions at 10s by default; the 5-provider fan-out
+// (incl. the sequential TVMaze->EZTV chain) needs headroom. Max on Hobby: 60.
+export const maxDuration = 60;
 
 // Everything works out of the box — no env files, no keys, no setup.
 const REQUEST_TIMEOUT_MS = 12000;
