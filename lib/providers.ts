@@ -1,23 +1,27 @@
 import { createHash } from "node:crypto";
 import { XMLParser } from "fast-xml-parser";
+import { categorySources, type CategoryId } from "./categories";
 import type { TorrentResult } from "./types";
 
 /**
- * Built-in providers that need zero configuration:
- * - nyaa: official Nyaa RSS feed (anime + general)
- * - yts: YTS movie API (movies, one result per quality)
- * These merge with Jackett/Torznab results when Torznab is configured.
+ * Zero-config providers. No API keys, no env files, no self-hosted indexers:
+ * - nyaa: official Nyaa RSS feed (anime, live-action, audio, literature, software)
+ * - yts: YTS movie API (movies, one result per quality, carries imdb ids)
+ * - tpb: The Pirate Bay via the public Apibay API (general, carries imdb ids)
  */
 
-export const BUILTIN_PROVIDER_IDS = ["nyaa", "yts"] as const;
-export type BuiltinProviderId = (typeof BUILTIN_PROVIDER_IDS)[number];
+export const PROVIDER_IDS = ["nyaa", "yts", "tpb"] as const;
+export type ProviderId = (typeof PROVIDER_IDS)[number];
 
-export function isBuiltinProvider(id: string): id is BuiltinProviderId {
-  return (BUILTIN_PROVIDER_IDS as readonly string[]).includes(id.toLowerCase());
+export function isProvider(id: string): id is ProviderId {
+  return (PROVIDER_IDS as readonly string[]).includes(id.toLowerCase());
 }
 
-const NYAA_RSS_URL = "https://nyaa.si/?page=rss&c=0_0&f=0";
-const YTS_API_URL = "https://movies-api.accel.li/api/v2/list_movies.json";
+const NYAA_RSS_BASE = "https://nyaa.si/?page=rss&f=0";
+export const YTS_API_URL = "https://movies-api.accel.li/api/v2/list_movies.json";
+const APIBAY_URL = "https://apibay.org/q.php";
+/** cap per TPB category request — apibay can return hundreds of rows */
+const TPB_PER_CAT_CAP = 60;
 
 const MAGNET_TRACKERS = [
   "udp://open.demonii.com:1337/announce",
@@ -63,13 +67,16 @@ function stableId(tracker: string, seed: string): string {
     .slice(0, 16);
 }
 
-async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
+export async function fetchWithTimeout(
+  url: string,
+  timeoutMs: number,
+): Promise<Response> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const res = await fetch(url, {
       signal: ctrl.signal,
-      headers: { "User-Agent": "BitHarbor/0.1 (+self-hosted meta-search)" },
+      headers: { "User-Agent": "BitHarbor/0.2 (+personal meta-search)" },
     });
     if (!res.ok) throw new Error(`provider http ${res.status}`);
     return res;
@@ -93,6 +100,15 @@ function int(v: unknown): number {
   return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
 }
 
+/** Normalize an imdb reference to "tt..." form. */
+export function normalizeImdbId(raw: unknown): string | undefined {
+  if (typeof raw !== "string") return undefined;
+  const m = raw.match(/(tt\d{4,})/);
+  return m ? m[1] : undefined;
+}
+
+/* ---------------- Nyaa ---------------- */
+
 /** Pure: Nyaa RSS XML -> TorrentResult[]. Exported for tests. */
 export function parseNyaaRss(xml: string): TorrentResult[] {
   let doc: unknown;
@@ -111,7 +127,9 @@ export function parseNyaaRss(xml: string): TorrentResult[] {
   for (const item of items) {
     const title = str(item.title) ?? "untitled";
     const torrentUrl = str(item.link);
-    const detailsUrl = str((item.guid as Record<string, unknown> | undefined)?.["#text"]) ?? str(item.guid);
+    const detailsUrl =
+      str((item.guid as Record<string, unknown> | undefined)?.["#text"]) ??
+      str(item.guid);
     const infoHash = str(item["nyaa:infoHash"])?.toLowerCase();
     const seeders = int(item["nyaa:seeders"]);
     const leechers = int(item["nyaa:leechers"]);
@@ -143,11 +161,17 @@ export function parseNyaaRss(xml: string): TorrentResult[] {
   return out;
 }
 
-export async function searchNyaa(query: string, timeoutMs: number): Promise<TorrentResult[]> {
-  const url = `${NYAA_RSS_URL}&q=${encodeURIComponent(query)}`;
+export async function searchNyaa(
+  query: string,
+  timeoutMs: number,
+  category: string,
+): Promise<TorrentResult[]> {
+  const url = `${NYAA_RSS_BASE}&c=${encodeURIComponent(category)}&q=${encodeURIComponent(query)}`;
   const res = await fetchWithTimeout(url, timeoutMs);
   return parseNyaaRss(await res.text());
 }
+
+/* ---------------- YTS ---------------- */
 
 interface YtsTorrent {
   url?: string;
@@ -164,6 +188,7 @@ interface YtsTorrent {
 
 interface YtsMovie {
   title_long?: string;
+  imdb_code?: string;
   url?: string;
   torrents?: YtsTorrent[];
 }
@@ -176,6 +201,7 @@ export function parseYtsResponse(json: unknown): TorrentResult[] {
   for (const m of movies) {
     const base = m.title_long ?? "untitled";
     const detailsUrl = m.url;
+    const imdbId = normalizeImdbId(m.imdb_code);
     for (const t of m.torrents ?? []) {
       const infoHash = t.hash?.toLowerCase();
       if (!infoHash) continue;
@@ -198,6 +224,7 @@ export function parseYtsResponse(json: unknown): TorrentResult[] {
         magnetUri: buildMagnet(infoHash, label),
         torrentUrl: t.url,
         detailsUrl,
+        imdbId,
         seeders: int(t.seeds),
         leechers: int(t.peers),
         sizeBytes: Number.isFinite(sizeBytes) ? sizeBytes : 0,
@@ -210,23 +237,123 @@ export function parseYtsResponse(json: unknown): TorrentResult[] {
   return out;
 }
 
-export async function searchYts(query: string, timeoutMs: number): Promise<TorrentResult[]> {
+export async function searchYts(
+  query: string,
+  timeoutMs: number,
+): Promise<TorrentResult[]> {
   const url = `${YTS_API_URL}?query_term=${encodeURIComponent(query)}&limit=20&sort_by=like_count&order_by=desc`;
   const res = await fetchWithTimeout(url, timeoutMs);
   return parseYtsResponse(await res.json());
 }
 
-/** Fan-out to built-in providers. Per-provider failure resolves to []. */
-export async function searchBuiltin(
+/* ---------------- TPB (Apibay) ---------------- */
+
+interface ApibayRow {
+  id?: string;
+  name?: string;
+  info_hash?: string;
+  leechers?: string;
+  seeders?: string;
+  size?: string;
+  username?: string;
+  added?: string;
+  status?: string;
+  category?: string;
+  imdb?: string;
+}
+
+const TPB_TRUSTED_STATUS = new Set(["vip", "admin", "moderator", "trusted"]);
+
+/** Pure: Apibay q.php JSON -> TorrentResult[]. Exported for tests. */
+export function parseApibayResponse(json: unknown): TorrentResult[] {
+  if (!Array.isArray(json)) return [];
+  const out: TorrentResult[] = [];
+  for (const row of json as ApibayRow[]) {
+    const infoHash = row.info_hash?.toLowerCase();
+    const title = row.name ?? "untitled";
+    // Apibay signals "no results" as a zero-hash placeholder row.
+    if (!infoHash || /^0+$/.test(infoHash)) continue;
+    const seeders = int(row.seeders);
+    const leechers = int(row.leechers);
+    const sizeBytes = int(row.size);
+    const status = (row.status ?? "").toLowerCase();
+    let publishedAt = new Date().toISOString();
+    const added = Number.parseInt(row.added ?? "", 10);
+    if (Number.isFinite(added) && added > 0) {
+      publishedAt = new Date(added * 1000).toISOString();
+    }
+    out.push({
+      id: stableId("tpb", infoHash),
+      title,
+      tracker: "tpb",
+      infoHash,
+      magnetUri: buildMagnet(infoHash, title),
+      detailsUrl: row.id
+        ? `https://thepiratebay.org/description.php?id=${encodeURIComponent(row.id)}`
+        : undefined,
+      imdbId: normalizeImdbId(row.imdb),
+      seeders,
+      leechers,
+      sizeBytes,
+      publishedAt,
+      uploader: row.username || undefined,
+      trusted: TPB_TRUSTED_STATUS.has(status),
+    });
+  }
+  return out;
+}
+
+async function searchTpbCat(
   query: string,
-  ids: BuiltinProviderId[],
   timeoutMs: number,
+  cat: number | null,
 ): Promise<TorrentResult[]> {
-  const jobs = ids.map((id) =>
-    (id === "nyaa" ? searchNyaa(query, timeoutMs) : searchYts(query, timeoutMs)).catch(
-      (): TorrentResult[] => [],
-    ),
-  );
-  const settled = await Promise.all(jobs);
+  const url =
+    cat === null
+      ? `${APIBAY_URL}?q=${encodeURIComponent(query)}`
+      : `${APIBAY_URL}?q=${encodeURIComponent(query)}&cat=${cat}`;
+  const res = await fetchWithTimeout(url, timeoutMs);
+  const rows = parseApibayResponse(await res.json());
+  return rows.slice(0, TPB_PER_CAT_CAP);
+}
+
+export async function searchTpb(
+  query: string,
+  timeoutMs: number,
+  cats: number[],
+): Promise<TorrentResult[]> {
+  const jobs =
+    cats.length === 0
+      ? [searchTpbCat(query, timeoutMs, null)]
+      : cats.map((c) => searchTpbCat(query, timeoutMs, c));
+  const settled = await Promise.all(jobs.map((j) => j.catch((): TorrentResult[] => [])));
+  return settled.flat();
+}
+
+/* ---------------- fan-out ---------------- */
+
+/**
+ * Fan-out across providers honoring the category map.
+ * Per-provider failure resolves to []. No keys, no config.
+ */
+export async function searchProviders(
+  query: string,
+  ids: ProviderId[],
+  timeoutMs: number,
+  category: CategoryId,
+): Promise<TorrentResult[]> {
+  const src = categorySources(category);
+  const jobs = ids.map((id): Promise<TorrentResult[]> => {
+    if (id === "nyaa") {
+      if (!src.nyaa) return Promise.resolve([]);
+      return searchNyaa(query, timeoutMs, src.nyaa);
+    }
+    if (id === "yts") {
+      if (!src.yts) return Promise.resolve([]);
+      return searchYts(query, timeoutMs);
+    }
+    return searchTpb(query, timeoutMs, src.tpb);
+  });
+  const settled = await Promise.all(jobs.map((j) => j.catch((): TorrentResult[] => [])));
   return settled.flat();
 }

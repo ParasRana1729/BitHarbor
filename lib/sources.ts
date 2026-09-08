@@ -1,55 +1,38 @@
-import { isBuiltinProvider, type BuiltinProviderId } from "./providers";
+import type { ProviderId } from "./providers";
+import { categorySources } from "./categories";
 
 export interface ResolvedSources {
-  builtinIds: BuiltinProviderId[];
-  /** jackett indexer ids to query, ["all"] for feed-wide, or null to skip */
-  jackettQuery: string[] | null;
+  providers: ProviderId[];
   effectiveTrackers: string[];
-  /** true when caller explicitly named a Jackett indexer we cannot serve */
-  needsJackettError: boolean;
+  /** explicitly requested ids we don't know */
+  invalid: string[];
 }
 
 /**
- * Pure source-routing for /api/search. Rules:
- * - "all" (or default) => built-ins + Jackett default feed when configured
- * - explicit built-in ids => built-ins only
- * - explicit Jackett ids without configuration => needsJackettError
- * - unconfigured + non-explicit => built-ins, no error
+ * Pure source-routing for /api/search. No configuration anywhere:
+ * - blank/"all" => every provider the category uses
+ * - explicit ids => exactly those (validated; unknown go to `invalid`)
  */
-export function resolveSources(opts: {
-  trackers: string[];
-  defaultIndexers: string[];
-  jackettConfigured: boolean;
-  explicitTrackers: boolean;
-}): ResolvedSources {
-  const { trackers, defaultIndexers, jackettConfigured, explicitTrackers } = opts;
-  const wantsAll = trackers.includes("all");
-  const builtinIds = (
-    wantsAll ? ["nyaa", "yts"] : trackers.filter((t) => isBuiltinProvider(t))
-  ) as BuiltinProviderId[];
-  const jackettIds = wantsAll
-    ? defaultIndexers.filter((t) => t !== "all" && !isBuiltinProvider(t))
-    : trackers.filter((t) => t !== "all" && !isBuiltinProvider(t));
-  const queryJackettAll = wantsAll && defaultIndexers.includes("all");
-
-  if (!jackettConfigured && explicitTrackers && jackettIds.length > 0) {
-    return {
-      builtinIds,
-      jackettQuery: null,
-      effectiveTrackers: [...builtinIds],
-      needsJackettError: true,
-    };
+export function resolveSources(
+  trackers: string[],
+  category: Parameters<typeof categorySources>[0],
+): ResolvedSources {
+  const cleaned = trackers.map((t) => t.toLowerCase()).filter((t) => t !== "all");
+  if (cleaned.length === 0) {
+    const src = categorySources(category);
+    const providers: ProviderId[] = [];
+    if (src.nyaa) providers.push("nyaa");
+    if (src.yts) providers.push("yts");
+    providers.push("tpb");
+    // anime intentionally skips tpb (no anime categories there)
+    const trimmed: ProviderId[] = category === "anime" ? ["nyaa"] : providers;
+    return { providers: trimmed, effectiveTrackers: trimmed, invalid: [] };
   }
-  const jackettQuery =
-    jackettConfigured && (jackettIds.length > 0 || queryJackettAll)
-      ? queryJackettAll
-        ? ["all"]
-        : jackettIds
-      : null;
-  return {
-    builtinIds,
-    jackettQuery,
-    effectiveTrackers: [...builtinIds, ...(jackettQuery ?? [])],
-    needsJackettError: false,
-  };
+  const known: ProviderId[] = ["nyaa", "yts", "tpb"];
+  const providers = cleaned.filter((t): t is ProviderId =>
+    (known as string[]).includes(t),
+  );
+  const invalid = cleaned.filter((t) => !(known as string[]).includes(t));
+  const deduped: ProviderId[] = Array.from(new Set(providers));
+  return { providers: deduped, effectiveTrackers: deduped, invalid };
 }

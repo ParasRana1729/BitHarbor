@@ -5,14 +5,16 @@ export interface TorrentResult {
   /** stable id: sha1(tracker + infoHash/title) truncated */
   id: string;
   title: string;
-  /** Jackett indexer id, e.g. "1337x", "nyaasi", "yts" */
+  /** provider id: "nyaa" | "yts" | "tpb" */
   tracker: string;
   infoHash?: string;
   magnetUri?: string;
-  /** direct .torrent URL (Jackett proxied or tracker link) */
+  /** direct .torrent URL (provider CDN or tracker link) */
   torrentUrl?: string;
-  /** tracker details page */
+  /** provider details page */
   detailsUrl?: string;
+  /** imdb id (tt...) when the provider supplies it — powers subtitles */
+  imdbId?: string;
   seeders: number;
   leechers: number;
   sizeBytes: number;
@@ -24,16 +26,10 @@ export interface TorrentResult {
 
 export interface SearchResponse {
   query: string;
+  category: string;
   trackers: string[];
   cached: boolean;
   tookMs: number;
   count: number;
   results: TorrentResult[];
-}
-
-export interface SearchQueryParams {
-  q: string;
-  /** comma-separated indexer ids, or ["all"] */
-  trackers: string[];
-  includeZero: boolean;
 }

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   buildMagnet,
+  normalizeImdbId,
+  parseApibayResponse,
   parseNyaaRss,
   parseSizeToBytes,
   parseYtsResponse,
@@ -45,6 +47,7 @@ const YTS_FIXTURE = {
     movies: [
       {
         title_long: "Dune (2021)",
+        imdb_code: "tt1160419",
         url: "https://yts.gg/movies/dune-2021",
         torrents: [
           {
@@ -119,6 +122,72 @@ describe("parseNyaaRss", () => {
   });
 });
 
+describe("normalizeImdbId", () => {
+  it.each([
+    ["tt0133093", "tt0133093"],
+    ["https://www.imdb.com/title/tt0133093/", "tt0133093"],
+    ["", undefined],
+    ["nonsense", undefined],
+    [undefined, undefined],
+    [42, undefined],
+  ])("normalizes %p -> %p", (raw, expected) => {
+    expect(normalizeImdbId(raw)).toBe(expected);
+  });
+});
+
+describe("parseApibayResponse", () => {
+  const rows = [
+    {
+      id: "7349687",
+      name: "The Matrix (1999) 1080p BrRip x264 - YIFY",
+      info_hash: "D7A46713EAEE18C746B3254B7D1492A50FD9D6CE",
+      leechers: "124",
+      seeders: "858",
+      size: "1992277407",
+      username: "YIFY",
+      added: "1339543961",
+      status: "vip",
+      category: "207",
+      imdb: "tt0133093",
+    },
+    {
+      name: "No results returned",
+      info_hash: "0000000000000000000000000000000000000000",
+      leechers: "0",
+      seeders: "0",
+      size: "0",
+      category: "0",
+    },
+  ];
+
+  it("maps rows, skips the zero-hash placeholder", () => {
+    const out = parseApibayResponse(rows);
+    expect(out).toHaveLength(1);
+    const r = out[0];
+    expect(r.tracker).toBe("tpb");
+    expect(r.title).toContain("The Matrix");
+    expect(r.infoHash).toBe("d7a46713eaee18c746b3254b7d1492a50fd9d6ce");
+    expect(r.magnetUri).toContain("magnet:?");
+    expect(r.detailsUrl).toBe("https://thepiratebay.org/description.php?id=7349687");
+    expect(r.seeders).toBe(858);
+    expect(r.leechers).toBe(124);
+    expect(r.sizeBytes).toBe(1992277407);
+    expect(r.uploader).toBe("YIFY");
+    expect(r.trusted).toBe(true);
+    expect(r.imdbId).toBe("tt0133093");
+    expect(r.publishedAt).toBe(new Date(1339543961 * 1000).toISOString());
+  });
+
+  it("marks non-vip uploaders untrusted", () => {
+    const out = parseApibayResponse([{ ...rows[0], status: "member" }]);
+    expect(out[0].trusted).toBe(false);
+  });
+
+  it("returns [] for non-arrays", () => {
+    expect(parseApibayResponse({})).toEqual([]);
+  });
+});
+
 describe("parseYtsResponse", () => {
   it("emits one result per torrent with hash, skips hashless", () => {
     const out = parseYtsResponse(YTS_FIXTURE);
@@ -133,6 +202,7 @@ describe("parseYtsResponse", () => {
     expect(r.seeders).toBe(900);
     expect(r.trusted).toBe(true);
     expect(r.uploader).toBe("YTS");
+    expect(r.imdbId).toBe("tt1160419");
     expect(r.publishedAt).toBe(new Date(1725148800 * 1000).toISOString());
   });
 
