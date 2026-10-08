@@ -378,6 +378,7 @@ export default function Home(): React.JSX.Element {
 
   return (
     <main className="container">
+      <div className="hw-noise" aria-hidden="true" />
       <header className="topbar">
         <div className="brand mono">~/bitharbor</div>
         <button
@@ -391,6 +392,7 @@ export default function Home(): React.JSX.Element {
       </header>
 
       <div className="hero">
+        <div className="kicker mono">Open-source · Torrent meta-search · No setup</div>
         <h1>find it. grab it.</h1>
         <p>torrents across five open feeds. no setup, no accounts. make it yours.</p>
       </div>
@@ -487,6 +489,9 @@ export default function Home(): React.JSX.Element {
       <footer className="footer mono">
         <span>nyaa · yts · tpb · solid · eztv · yify subs · kitsunekko jp subs</span>
         <span>only grab what you have the right to.</span>
+        <div className="ghost" aria-hidden="true">
+          Harbor
+        </div>
       </footer>
     </main>
   );
