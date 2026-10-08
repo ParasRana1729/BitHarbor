@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 84" fill="none">
+  <!-- Pill border container -->
+  <rect x="1" y="1" width="58" height="82" rx="29" stroke="currentColor" stroke-width="1.75"/>
+  <!-- Header NOUS -->
+  <text x="30" y="16" text-anchor="middle" font-family="'Times New Roman', serif" font-weight="bold" font-size="10" fill="currentColor" letter-spacing="1.5">NOUS</text>
+  <line x1="12" y1="20" x2="48" y2="20" stroke="currentColor" stroke-width="1"/>
+  <!-- 1-bit anime heroine portrait with headphones -->
+  <g stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Headphone band -->
+    <path d="M19 36 C 19 25, 41 25, 41 36" fill="none" stroke-width="2"/>
+    <!-- Headphone earcups -->
+    <rect x="16" y="34" width="4" height="12" rx="2" fill="currentColor"/>
+    <rect x="40" y="34" width="4" height="12" rx="2" fill="currentColor"/>
+    <!-- Hair outline & bangs -->
+    <path d="M21 34 C 23 27, 37 27, 39 34 C 41 40, 39 48, 38 52 C 34 50, 30 52, 26 50 C 22 52, 20 44, 21 34 Z"/>
+    <path d="M25 32 Q 30 38 30 40"/>
+    <path d="M35 32 Q 30 38 31 40"/>
+    <!-- Face contour -->
+    <path d="M23 39 C 23 46, 27 52, 30 52 C 33 52, 37 46, 37 39"/>
+    <!-- Eyes -->
+    <ellipse cx="26" cy="42" rx="1.5" ry="2.2" fill="currentColor"/>
+    <ellipse cx="34" cy="42" rx="1.5" ry="2.2" fill="currentColor"/>
+    <circle cx="25.5" cy="41.2" r="0.6" fill="#fff"/>
+    <circle cx="33.5" cy="41.2" r="0.6" fill="#fff"/>
+    <!-- Mouth -->
+    <path d="M29 47 Q 30 48 31 47"/>
+    <!-- Collar / Drapery -->
+    <path d="M20 62 C 24 55, 36 55, 40 62"/>
+    <path d="M26 56 L 24 72"/>
+    <path d="M34 56 L 36 72"/>
+    <path d="M30 54 L 30 74"/>
+    <!-- Telemetry stars -->
+    <circle cx="16" cy="68" r="0.8" fill="currentColor"/>
+    <circle cx="44" cy="68" r="0.8" fill="currentColor"/>
+    <line x1="20" y1="76" x2="40" y2="76" stroke="currentColor" stroke-width="0.75" stroke-dasharray="2 2"/>
+  </g>
+</svg>

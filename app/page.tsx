@@ -285,6 +285,20 @@ function ResultCard({ r }: { r: TorrentResult }): React.JSX.Element {
   );
 }
 
+
+const ART_PLATES = [
+  {
+    id: "clippership",
+    name: "The Three-Masted Clipper Ship",
+    src: "/harbor/platform-art.webp",
+  },
+  {
+    id: "compass",
+    name: "The Celestial Mariner's Compass",
+    src: "/harbor/feature-compass.webp",
+  },
+];
+
 export default function Home(): React.JSX.Element {
   const [theme, setTheme] = useState<Theme>("dark");
   const [q, setQ] = useState("");
@@ -296,6 +310,12 @@ export default function Home(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<SearchResponse | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Quickstart terminal drawer state
+  const [showSelfHost, setShowSelfHost] = useState(false);
+  const [artIndex, setArtIndex] = useState(0);
+  const [termTab, setTermTab] = useState<"docker" | "curl" | "torznab">("docker");
+  const [termCopied, setTermCopied] = useState(false);
 
   useEffect(() => {
     const saved = window.localStorage.getItem("bitharbor-theme");
@@ -348,127 +368,256 @@ export default function Home(): React.JSX.Element {
       }
       setData(json as SearchResponse);
     } catch {
-      setError("network error — is the server running?");
+      setError("network error talking to /api/search");
       setData(null);
     } finally {
       setLoading(false);
     }
   }, [q, cat, sources, includeZero, loading]);
 
-  const results = useMemo(() => {
+  const sorted = useMemo(() => {
     if (!data) return [];
-    const rows = [...data.results];
-    if (sort === "newest") {
-      rows.sort((a, b) => +new Date(b.publishedAt) - +new Date(a.publishedAt));
-    } else if (sort === "biggest") {
-      rows.sort((a, b) => b.sizeBytes - a.sizeBytes);
-    } else if (sort === "smallest") {
-      rows.sort(
-        (a, b) => (a.sizeBytes || Number.MAX_SAFE_INTEGER) - (b.sizeBytes || Number.MAX_SAFE_INTEGER),
-      );
+    const copy = [...data.results];
+    switch (sort) {
+      case "seeders":
+        return copy.sort((a, b) => b.seeders - a.seeders);
+      case "newest":
+        return copy.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+      case "biggest":
+        return copy.sort((a, b) => b.sizeBytes - a.sizeBytes);
+      case "smallest":
+        return copy.sort((a, b) => a.sizeBytes - b.sizeBytes);
+      default:
+        return copy;
     }
-    return rows;
   }, [data, sort]);
 
   const breakdown = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const r of data?.results ?? []) m.set(r.tracker, (m.get(r.tracker) ?? 0) + 1);
-    return [...m.entries()];
+    if (!data) return [];
+    const counts = new Map<string, number>();
+    for (const r of data.results) {
+      counts.set(r.tracker, (counts.get(r.tracker) ?? 0) + 1);
+    }
+    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
   }, [data]);
 
+  const termCommands = {
+    docker: "docker run -d -p 3000:3000 --name bitharbor ghcr.io/parasrana1729/bitharbor:latest",
+    curl: "curl -s 'http://localhost:3000/api/search?q=ubuntu&cat=software'",
+    torznab: "http://localhost:3000/api/search?q={query}&cat={category}",
+  };
+
+  const hasSearched = data !== null;
+
   return (
-    <main className="container">
-      <div className="hw-noise" aria-hidden="true" />
+    <main className={`container ${hasSearched ? "has-results" : "search-home"}`}>
+      <div className="global-noise" aria-hidden="true" />
+
+      {/* Topbar Header */}
       <header className="topbar">
-        <div className="brand mono">~/bitharbor</div>
-        <button
-          type="button"
-          className="theme-toggle mono"
-          onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
-          title="toggle theme"
-        >
-          {theme === "dark" ? "◐ light" : "◑ dark"}
-        </button>
+        <div className="brand-group">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/harbor/anchor.svg"
+            alt="BitHarbor Anchor"
+            className="brand-wing"
+            width={20}
+            height={20}
+          />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/harbor/lighthouse.svg"
+            alt="BitHarbor Beacon"
+            className="brand-mascot-pill"
+            width={22}
+            height={30}
+          />
+          <div className="brand mono">~/bitharbor</div>
+        </div>
+
+        <nav className="header-nav">
+          <button
+            type="button"
+            className="selfhost-btn mono"
+            onClick={() => setShowSelfHost((v) => !v)}
+            title="view self-host docker & api commands"
+          >
+            {showSelfHost ? "✕ close" : "⇲ self-host / api"}
+          </button>
+          <button
+            type="button"
+            className="theme-toggle mono"
+            onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
+            title="toggle theme"
+          >
+            {theme === "dark" ? "◐ light" : "◑ dark"}
+          </button>
+        </nav>
       </header>
 
-      <div className="hero">
-        <div className="kicker mono">Open-source · Torrent meta-search · No setup</div>
-        <h1>find it. grab it.</h1>
-        <p>torrents across five open feeds. no setup, no accounts. make it yours.</p>
-      </div>
+      {/* Expandable Self-Host / API Drawer (Zero space when collapsed) */}
+      {showSelfHost && (
+        <div className="selfhost-drawer mono">
+          <div className="selfhost-header">
+            <span>SELF-HOST NODE // DOCKER &amp; REST API</span>
+            <span className="mono dim">v0.1</span>
+          </div>
+          <div className="terminal-card">
+            <div className="terminal-tabs">
+              <button
+                type="button"
+                className={termTab === "docker" ? "terminal-tab active" : "terminal-tab"}
+                onClick={() => setTermTab("docker")}
+              >
+                Docker
+              </button>
+              <button
+                type="button"
+                className={termTab === "curl" ? "terminal-tab active" : "terminal-tab"}
+                onClick={() => setTermTab("curl")}
+              >
+                cURL API
+              </button>
+              <button
+                type="button"
+                className={termTab === "torznab" ? "terminal-tab active" : "terminal-tab"}
+                onClick={() => setTermTab("torznab")}
+              >
+                Torznab
+              </button>
+            </div>
+            <div className="terminal-body">
+              <span className="terminal-code">{termCommands[termTab]}</span>
+              <button
+                type="button"
+                className="terminal-copy"
+                onClick={() => {
+                  void copyText(termCommands[termTab]).then((ok) => {
+                    setTermCopied(ok);
+                    setTimeout(() => setTermCopied(false), 1500);
+                  });
+                }}
+              >
+                {termCopied ? "copied ✓" : "copy"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-      <div className="pills" role="tablist" aria-label="Category">
-        {CATEGORIES.map((c) => (
-          <button
-            key={c.id}
-            type="button"
-            role="tab"
-            aria-selected={cat === c.id}
-            className={cat === c.id ? "pill active" : "pill"}
-            title={c.hint}
-            onClick={() => setCat(c.id)}
-          >
-            {c.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="prompt">
-        <span className="dollar">$</span>
-        <input
-          ref={inputRef}
-          type="text"
-          placeholder="search torrents…  ( / to focus )"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
+      {/* Google-Style Centered Search Engine Core */}
+      <div className="search-stage">
+        {/* Pure Copperplate Engraving Plate (No font inside art; click to toggle between Clipper & Compass) */}
+        <div
+          className="masthead-vignette"
+          title="Click to toggle between Clipper Ship and Mariner's Compass // BitHarbor"
+          onClick={() => setArtIndex((i) => (i + 1) % ART_PLATES.length)}
+          role="button"
+          tabIndex={0}
           onKeyDown={(e) => {
-            if (e.key === "Enter") void run();
+            if (e.key === "Enter" || e.key === " ") {
+              setArtIndex((i) => (i + 1) % ART_PLATES.length);
+            }
           }}
-          maxLength={100}
-          aria-label="Search torrents"
-        />
-        <button type="button" disabled={loading || q.trim().length < 2} onClick={() => void run()}>
-          {loading ? "…" : "↵"}
-        </button>
-      </div>
+          style={{ cursor: "pointer" }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={ART_PLATES[artIndex].src}
+            alt={ART_PLATES[artIndex].name}
+            className="masthead-art"
+            width={260}
+            height={160}
+          />
+        </div>
 
-      <div className="controls mono">
-        <div className="chips">
-          {SOURCES.map((s) => (
+        <div className="hero-text">
+          <div className="kicker mono">Open-source · Decentralized Swarm Search · Zero Logs</div>
+          <h1>Safe Harbor in Digital Seas</h1>
+        </div>
+
+        {/* 8 Category Tabs */}
+        <div className="pills" role="tablist" aria-label="Category">
+          {CATEGORIES.map((c) => (
             <button
-              key={s.id}
+              key={c.id}
               type="button"
-              aria-pressed={sources.includes(s.id)}
-              className={sources.includes(s.id) ? "chip active" : "chip"}
-              title={s.hint}
-              onClick={() => toggleSource(s.id)}
+              role="tab"
+              aria-selected={cat === c.id}
+              className={cat === c.id ? "pill active" : "pill"}
+              title={c.hint}
+              onClick={() => setCat(c.id)}
             >
-              {s.label}
+              {c.label}
             </button>
           ))}
         </div>
-        <label className="sort">
-          sort:{` `}
-          <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
-            {SORTS.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="zero">
+
+        {/* Main Search Prompt with Animated Conic Border */}
+        <div className="prompt hw-arc">
+          <span className="dollar"><span>⚓</span><span className="coord-mark mono">/</span></span>
           <input
-            type="checkbox"
-            checked={includeZero}
-            onChange={(e) => setIncludeZero(e.target.checked)}
-          />{` `}
-          0-seed
-        </label>
+            ref={inputRef}
+            type="text"
+            placeholder="Search torrents across open swarms…  ( / to focus )"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void run();
+            }}
+            maxLength={100}
+            aria-label="Search torrents"
+            autoFocus
+          />
+          <button
+            type="button"
+            disabled={loading || q.trim().length < 2}
+            onClick={() => void run()}
+          >
+            {loading ? "…" : "↵"}
+          </button>
+        </div>
+
+        {/* Tracker Source Chips & Sorting Controls */}
+        <div className="controls mono">
+          <div className="chips">
+            {SOURCES.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                aria-pressed={sources.includes(s.id)}
+                className={sources.includes(s.id) ? "chip active" : "chip"}
+                title={s.hint}
+                onClick={() => toggleSource(s.id)}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+          <label className="sort">
+            sort:{" "}
+            <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
+              {SORTS.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="zero">
+            <input
+              type="checkbox"
+              checked={includeZero}
+              onChange={(e) => setIncludeZero(e.target.checked)}
+            />{" "}
+            0-seed
+          </label>
+        </div>
       </div>
 
       {error && <div className="error">{error}</div>}
 
+      {/* Instant Search Meta & Results (Rendered immediately below search bar) */}
       {data && (
         <div className="meta mono">
           {data.count} results · {data.tookMs}ms · {data.cached ? "cache hit" : "live"} ·{" "}
@@ -477,7 +626,7 @@ export default function Home(): React.JSX.Element {
       )}
 
       <section className="results">
-        {results.map((r) => (
+        {sorted.map((r) => (
           <ResultCard key={r.id} r={r} />
         ))}
       </section>
@@ -486,11 +635,14 @@ export default function Home(): React.JSX.Element {
         <div className="card">no results — try fewer words or another category.</div>
       )}
 
-      <footer className="footer mono">
-        <span>nyaa · yts · tpb · solid · eztv · yify subs · kitsunekko jp subs</span>
-        <span>only grab what you have the right to.</span>
+      {/* Streamlined Minimalist Google-Style Footer */}
+      <footer className="compact-footer mono">
+        <div className="footer-line">
+          <span>nyaa · yts · tpb · solid · eztv · yify subs · kitsunekko jp subs</span>
+          <span className="footer-tag">only grab what you have the right to.</span>
+        </div>
         <div className="ghost" aria-hidden="true">
-          Harbor
+          BITHARBOR
         </div>
       </footer>
     </main>

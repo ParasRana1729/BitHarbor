@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 575 844" fill="none">
+  <!-- Solid cobalt Nous Girl woodcut vector representation -->
+  <g stroke="#0000f2" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <!-- Starburst & Celestial Moon in hand -->
+    <circle cx="160" cy="180" r="42" stroke-width="2.5" fill="#ffffff"/>
+    <circle cx="160" cy="180" r="38" stroke-width="1.2" stroke-dasharray="3 3"/>
+    <!-- Moon craters -->
+    <circle cx="148" cy="170" r="8" stroke-width="1.2"/>
+    <circle cx="172" cy="188" r="11" stroke-width="1.2"/>
+    <circle cx="152" cy="192" r="5" stroke-width="1"/>
+    <!-- Radiating sunburst rays -->
+    <path d="M160 120 L160 134 M160 226 L160 240 M100 180 L114 180 M206 180 L220 180" stroke-width="2"/>
+    <path d="M118 138 L128 148 M192 212 L202 222 M118 222 L128 212 M192 148 L202 138" stroke-width="1.5"/>
+    <path d="M138 126 L142 138 M182 222 L186 234 M106 198 L118 202 M202 158 L214 162" stroke-width="1"/>
+    <path d="M182 126 L178 138 M138 222 L134 234 M106 162 L118 158 M202 202 L214 198" stroke-width="1"/>
+
+    <!-- Hand holding moon -->
+    <path d="M125 240 C140 245, 175 248, 195 235 C185 245, 160 252, 140 250" stroke-width="2" fill="#ffffff"/>
+    <path d="M140 250 C160 254, 185 252, 195 242" stroke-width="1.5"/>
+    <path d="M195 235 C205 240, 215 248, 220 255 C210 258, 190 260, 165 260" stroke-width="1.5"/>
+
+    <!-- Arm reaching to moon -->
+    <path d="M250 320 C230 290, 190 270, 165 260" stroke-width="2.5"/>
+    <path d="M265 335 C245 305, 210 285, 185 275" stroke-width="1.5"/>
+
+    <!-- Nous Girl Figure -->
+    <!-- Head & Studio Headphones -->
+    <path d="M280 200 C270 140, 360 140, 350 200" stroke-width="4"/>
+    <rect x="268" y="195" width="16" height="34" rx="6" stroke-width="2.5" fill="#0000f2"/>
+    <rect x="346" y="195" width="16" height="34" rx="6" stroke-width="2.5" fill="#0000f2"/>
+    <!-- Headband cushion -->
+    <path d="M285 190 C290 155, 340 155, 345 190" stroke-width="2" stroke-dasharray="2 2"/>
+
+    <!-- Flowing Hair & Bangs -->
+    <path d="M275 205 C260 240, 240 280, 215 320 C180 370, 150 440, 145 520" stroke-width="2.5"/>
+    <path d="M350 205 C380 240, 420 300, 435 380 C445 440, 430 520, 405 580" stroke-width="2.5"/>
+    <path d="M285 195 C300 220, 330 220, 345 195" stroke-width="2"/>
+    <path d="M295 198 L300 225 M315 198 L315 228 M330 198 L328 225" stroke-width="1.5"/>
+
+    <!-- Face and Eyes -->
+    <path d="M290 220 C290 245, 305 260, 315 260 C325 260, 340 245, 340 220" stroke-width="2" fill="#ffffff"/>
+    <ellipse cx="303" cy="235" rx="3.5" ry="5" fill="#0000f2"/>
+    <ellipse cx="327" cy="235" rx="3.5" ry="5" fill="#0000f2"/>
+    <circle cx="301" cy="233" r="1.2" fill="#ffffff"/>
+    <circle cx="325" cy="233" r="1.2" fill="#ffffff"/>
+    <path d="M312 248 Q315 250 318 248" stroke-width="1.5"/>
+
+    <!-- Classical Robe Drapery with Greek key fretwork -->
+    <path d="M275 280 C270 330, 255 420, 250 500 C240 600, 220 700, 180 770" stroke-width="3"/>
+    <path d="M350 280 C365 350, 375 450, 380 550 C385 640, 370 720, 350 780" stroke-width="3"/>
+    <path d="M280 320 C310 330, 340 325, 355 315" stroke-width="2"/>
+    <path d="M275 350 C315 365, 350 355, 365 340" stroke-width="2"/>
+    <path d="M265 410 C310 435, 355 425, 375 395" stroke-width="2.5"/>
+    <path d="M260 480 C305 510, 350 500, 380 460" stroke-width="2.5"/>
+
+    <!-- Hatching lines for shading on drapery -->
+    <path d="M270 365 L285 390 M275 385 L290 410 M280 405 L295 430" stroke-width="1"/>
+    <path d="M345 365 L335 390 M340 385 L330 410 M335 405 L325 430" stroke-width="1"/>
+    <path d="M265 440 L280 465 M270 460 L285 485 M275 480 L290 505" stroke-width="1"/>
+
+    <!-- Bottom Platform Zodiac / Pedestal -->
+    <ellipse cx="280" cy="780" rx="210" ry="36" stroke-width="3" fill="#ffffff"/>
+    <ellipse cx="280" cy="780" rx="195" ry="30" stroke-width="1.5" stroke-dasharray="4 4"/>
+    <ellipse cx="280" cy="780" rx="175" ry="24" stroke-width="1"/>
+    <!-- Classical temple rotunda in background -->
+    <path d="M420 480 L420 620 M445 480 L445 620 M470 480 L470 620 M495 480 L495 620" stroke-width="2"/>
+    <path d="M410 480 L505 480" stroke-width="3"/>
+    <path d="M410 475 C410 430, 505 430, 505 475" stroke-width="2.5"/>
+    <line x1="457" y1="415" x2="457" y2="430" stroke-width="2"/>
+    <circle cx="457" cy="412" r="3" fill="#0000f2"/>
+  </g>
+</svg>

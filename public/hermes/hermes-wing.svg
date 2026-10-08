@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <!-- Classical stipple-engraved Talaria wing feathers -->
+  <g stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M10 85 C 25 70, 45 50, 85 15 C 80 35, 65 55, 45 75 Z" fill="currentColor" fill-opacity="0.15"/>
+    <path d="M15 85 C 28 65, 52 42, 88 18"/>
+    <path d="M22 85 C 38 65, 60 48, 82 25"/>
+    <path d="M30 85 C 45 70, 68 55, 78 35"/>
+    <path d="M38 85 C 52 75, 72 62, 74 46"/>
+    <!-- Feather vanes & stipple hatching -->
+    <path d="M50 45 L 42 55 M 58 40 L 52 52 M 66 34 L 60 48 M 74 27 L 70 42"/>
+    <path d="M35 60 L 30 70 M 42 66 L 38 78 M 28 72 L 24 82"/>
+    <circle cx="85" cy="15" r="1.5" fill="currentColor"/>
+    <circle cx="78" cy="22" r="1" fill="currentColor"/>
+    <circle cx="70" cy="30" r="1" fill="currentColor"/>
+  </g>
+</svg>

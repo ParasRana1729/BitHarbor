@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 84" width="60" height="84" fill="none">
+  <!-- Pill border -->
+  <rect x="1.5" y="1.5" width="57" height="81" rx="28.5" stroke="#ffffff" stroke-width="2.5" fill="#000000" />
+  
+  <!-- Lighthouse Beacon Beam -->
+  <polygon points="30,22 8,10 52,10" fill="#2bff88" opacity="0.35" />
+  <line x1="30" y1="22" x2="6" y2="8" stroke="#2bff88" stroke-width="1.5" stroke-dasharray="2 2" />
+  <line x1="30" y1="22" x2="54" y2="8" stroke="#2bff88" stroke-width="1.5" stroke-dasharray="2 2" />
+  
+  <!-- Lantern Room -->
+  <rect x="25" y="16" width="10" height="9" fill="#ffffff" />
+  <circle cx="30" cy="20.5" r="2.5" fill="#000000" />
+  <polygon points="30,11 23,16 37,16" fill="#ffffff" />
+  <circle cx="30" cy="10" r="1.5" fill="#ffffff" />
+  
+  <!-- Tower -->
+  <polygon points="24,25 36,25 39,62 21,62" fill="#ffffff" />
+  <!-- Horizontal stripes on tower -->
+  <polygon points="23.2,34 36.8,34 37.6,42 22.4,42" fill="#000000" />
+  <polygon points="21.8,50 38.2,50 39,58 21,58" fill="#000000" />
+  <!-- Door -->
+  <path d="M28 62 L28 54 A2 2 0 0 1 32 54 L32 62 Z" fill="#000000" />
+  
+  <!-- Rocky Base & Waves -->
+  <rect x="16" y="62" width="28" height="4" fill="#ffffff" />
+  <path d="M12 70 Q 20 67 28 70 T 48 70" stroke="#ffffff" stroke-width="2" fill="none" />
+  <path d="M10 75 Q 22 72 34 75 T 50 75" stroke="#ffffff" stroke-width="1.5" fill="none" opacity="0.7" />
+</svg>
